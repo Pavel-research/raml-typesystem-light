@@ -3,12 +3,13 @@
   "version": "0.0.9",
   "private": false,
   "scripts": {
-    "compile": "rimraf -rf dist/ && ./node_modules/typescript/bin/tsc",
     "test-cov": " ./node_modules/.bin/istanbul cover _mocha dist/tests/*Tests.js",
-    "test": "npm run test-cov"
+    "test": "npm run test-cov",
+    "noValidationBuild": "rimraf dist && tsc",
+    "build": "npm run noValidationBuild"
   },
-  "main": "./dist/nominal-types.js",
-  "typings": "./dist/nominal-types.d.ts",
+  "main": "./dist/src/parse.js",
+  "typings": "./dist/src/parse.d.ts",
   "devDependencies": {
     "typescript": "^2.0.0",
     "dev-env-installer": "0.0.5",
@@ -18,16 +19,15 @@
     "chai": "^3.5.0",
     "@types/mocha": "*",
     "@types/chai": "*",
-    "istanbul": "^0.4.5"
+    "istanbul": "^0.4.5",
+    "webpack": "^2.5.1"
   },
   "directories": [
     "dist"
   ],
   "dependencies": {
     "@types/node": "^6.0.55",
-    "date-and-time": "^0.4.0",
     "raml-typeexpressions-parser": "0.0.9",
-    "raml-typesystem-interfaces": "^0.0.9",
-    "underscore": "^1.8.3"
+    "raml-typesystem-interfaces": "^0.0.9"
   }
 }

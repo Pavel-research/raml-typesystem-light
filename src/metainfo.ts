@@ -2,7 +2,6 @@ import ts=require("./typesystem");
 var messageRegistry = ts.messageRegistry;
 import {Status} from "./typesystem";
 import {PropertyIs} from "./restrictions";
-import _=require("underscore")
 import ni=require("raml-typesystem-interfaces");
 import tsInterfaces=ni.tsInterfaces
 
@@ -594,7 +593,7 @@ export class Discriminator extends ts.TypeInformation{
             result = ts.error(messageRegistry.DISCRIMINATOR_FOR_INLINE, this)
         }
         else {
-            var prop = _.find(this.owner().meta(), x=>x instanceof PropertyIs && (<PropertyIs>x).propertyName() == this.value());
+            var prop = this.owner().meta().find( x=>x instanceof PropertyIs && (<PropertyIs>x).propertyName() == this.value());
             if (!prop) {
                 result = ts.error(messageRegistry.UNKNOWN_FOR_DISCRIMINATOR,
                     this, {value: this.value()}, ts.Status.WARNING);
@@ -685,7 +684,7 @@ export class DiscriminatorValue extends ts.Constraint{
                 st.addSubStatus(ts.error(messageRegistry.DISCRIMINATOR_VALUE_WITHOUT_DISCRIMINATOR, this));
             }
             else {
-                var prop = _.find(this.owner().meta(), x=>
+                var prop = this.owner().meta().find(x=>
                 x instanceof PropertyIs && (<PropertyIs>x).propertyName() == ds.value());
                 if (prop) {
                     var sm = prop.value().validate(this.value());

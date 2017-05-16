@@ -1,6 +1,6 @@
 import ts=require("./typesystem");
 var messageRegistry = ts.messageRegistry;
-import _= require("underscore");
+import _= require("./utils");
 import {AndRestriction} from "./typesystem";
 import {Constraint} from "./typesystem";
 import {AbstractType} from "./typesystem";
@@ -1200,7 +1200,6 @@ export class FileTypes extends FacetRestriction<string[]>{
         }
         return ts.ok()
     }
-
 
     composeWith(r:ts.Constraint):ts.Constraint{
         if (r instanceof FileTypes){

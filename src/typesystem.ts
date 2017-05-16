@@ -1,9 +1,9 @@
-import _=require("underscore")
 import ti = require("raml-typesystem-interfaces")
 import tsInterfaces = ti.tsInterfaces
 import su=require("./schemaUtil")
-export let messageRegistry = require("../../resources/errorMessages");
+import _=require("./utils")
 
+export var messageRegistry=require("./errorMessages");
 export type IValidationPath = tsInterfaces.IValidationPath;
 
 export class Status implements tsInterfaces.IStatus {

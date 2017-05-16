@@ -3,7 +3,7 @@ var date:{
     isValid(value:string,pattern:string):boolean,
     format(dateObj:Date, formatString:string, utc:boolean):string
     parse(dateString:string, formatString:string, utc:boolean):Date
-} = require('date-and-time');
+} = require('./date-and-time');
 
 import ts=require("./typesystem");
 var messageRegistry = ts.messageRegistry;
