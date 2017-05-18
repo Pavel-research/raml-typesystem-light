@@ -75,10 +75,27 @@ export class Annotation extends MetaInfo implements tsInterfaces.IAnnotation{
         super(name,value)
     }
 
+    name(){
+        return this.facetName();
+    }
+
+    definition(){
+        var owner=this.owner();
+        if (owner){
+            var reg=owner.getRegistry();
+            if (reg){
+                var tp=reg.get(this.facetName());
+                return tp;
+            }
+        }
+        return null;
+    }
+
     private _ownerFacet:tsInterfaces.ITypeFacet;
 
     validateSelf(registry:ts.TypeRegistry,ofExample:boolean=false):ts.Status {
         var tp=registry.get(this.facetName());
+
         if (!tp){
             return ts.error(messageRegistry.UNKNOWN_ANNOTATION,this,{facetName: this.facetName()});
         }

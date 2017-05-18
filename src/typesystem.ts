@@ -431,6 +431,7 @@ export class TypeRegistry implements tsInterfaces.ITypeRegistry {
         }
         this._types[t.name()] = t;
         this.typeList.push(t);
+        (<any>t).registry=this;
     }
 
     get(name: string): AbstractType {
@@ -660,6 +661,14 @@ export abstract class AbstractType implements tsInterfaces.IParsedType, tsInterf
     protected extras: {[name: string]: any} = {};
 
     protected supertypeAnnotations: {[aName: string]: tsInterfaces.IAnnotation}[];
+
+
+    protected registry: TypeRegistry;
+
+
+    getRegistry(){
+        return this.registry;
+    }
 
     getExtra(name: string): any {
         return this.extras[name];

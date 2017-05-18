@@ -97,7 +97,10 @@ class JSObjectNode implements ParseNode{
     };
 }
 export function parseJSON(name: string,n:any,r:ts.TypeRegistry=ts.builtInRegistry(), provider?: su.IContentProvider):ts.AbstractType {
-    return parse(name,new JSObjectNode(null,n, false, provider),r);
+    var res= parse(name,new JSObjectNode(null,n, false, provider),r);
+
+
+    return res;
 }
 export function parseJSONTypeCollection(n:any,r:ts.TypeRegistry=ts.builtInRegistry(), provider?: su.IContentProvider):TypeCollection {
     return parseTypeCollection(new JSObjectNode(null,n, false, provider),r);
@@ -375,7 +378,7 @@ export function parseTypeCollection(n:ParseNode,tr:ts.TypeRegistry):TypeCollecti
             result.addAnnotationType(parse(x.key(),x,reg,false,true,false))
         });
     }
-    
+
     return result;
 }
 
@@ -717,6 +720,23 @@ export function parse(
     annotation:boolean=false,
     global:boolean=true,
     ignoreTypeAttr:boolean=false):ts.AbstractType{
+    let res=parse(name,n,r,defaultsToAny,annotation,global,ignoreTypeAttr);
+    if (res.getRegistry()==null){
+        if (r!=ts.builtInRegistry()){
+            (<any>res).registry=r;
+        }
+    }
+    return res;
+}
+
+function parse2(
+    name: string,
+    n:ParseNode,
+    r:ts.TypeRegistry=ts.builtInRegistry(),
+    defaultsToAny:boolean=false,
+    annotation:boolean=false,
+    global:boolean=true,
+    ignoreTypeAttr:boolean=false):ts.AbstractType{
 
     //mentioning fragment' uses
     var uses=n.childWithKey("uses");
@@ -877,7 +897,7 @@ export function parse(
         if (key==="type"){
             return;
         }
-        
+
         if (key==="uses"){
 
             //FIXME this should be handled depending from parse level
@@ -930,7 +950,7 @@ export function parse(
                 else if (x.kind()==NodeKind.MAP){
                     componentTypes=[parse("",x,r,false,false,false)];
                 }
-                var tp = componentTypes.length == 1 ? componentTypes[0] : 
+                var tp = componentTypes.length == 1 ? componentTypes[0] :
                     ts.derive("",componentTypes);
                 appendedInfo = new ComponentShouldBeOfType(tp);
                 actualResult.addMeta(appendedInfo);
@@ -939,7 +959,7 @@ export function parse(
                     appendAnnotations(appendedInfo, childNode);
                 }
                 return appendedInfo;
-            }            
+            }
         }
         else {
             if (key === "facets") {
@@ -1041,12 +1061,12 @@ export function parse(
     actualResult.putExtra(ts.GLOBAL,global);
     actualResult.putExtra(ts.SOURCE_EXTRA, n);
     actualResult.putExtra(tsInterfaces.HAS_FACETS, hasfacetsOrOtherStuffDoesNotAllowedInExternals);
-    
+
     return actualResult;
 }
 
 function contributeToAccumulatingRegistry(result:ts.InheritedType,r:TypeRegistry):ts.InheritedType {
-    
+
     var existing:ts.InheritedType;
     var _r = r;
     while(_r){
