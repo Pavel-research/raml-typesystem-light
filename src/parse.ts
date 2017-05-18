@@ -727,6 +727,19 @@ export function parseWithCollection(
     return res;
 }
 
+export function parseJsonTypeWithCollection(
+    name: string,
+    n:any,
+    r:IParsedTypeCollection,
+    defaultsToAny:boolean=false,
+    annotation:boolean=false,
+    global:boolean=true,
+    ignoreTypeAttr:boolean=false):ts.AbstractType{
+    let res=parse(name,new JSObjectNode(null,n, false, null),<ts.TypeRegistry>r.getTypeRegistry(),defaultsToAny,annotation,global,ignoreTypeAttr);
+    (<any>res)._collection=r;
+    return res;
+}
+
 function parse(
     name: string,
     n:ParseNode,
