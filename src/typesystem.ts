@@ -665,6 +665,9 @@ export abstract class AbstractType implements tsInterfaces.IParsedType, tsInterf
 
     protected _collection: IParsedTypeCollection;
 
+    options():IParsedType[]{
+        return [this]
+    }
 
     collection(){
         return this._collection
@@ -1523,15 +1526,15 @@ export abstract class AbstractType implements tsInterfaces.IParsedType, tsInterf
     properties(): tsInterfaces.IPropertyInfo[] {
         if (this._properties==null){
             var m=this.meta();
-            for (let i=m.length-1;i>=0;i++){
-                if (m instanceof MatchesProperty){
-                    let p=new PropertyInfo(m);
+            for (let i=m.length-1;i>=0;i--){
+                if (m[i] instanceof MatchesProperty){
+                    let p=new PropertyInfo(<MatchesProperty>m[i]);
                     this._pMap[p.name()]=p;
                 }
             }
-            for (let i=m.length-1;i>=0;i++){
-                if (m instanceof HasProperty){
-                    let p=this._pMap[m.value()];
+            for (let i=m.length-1;i>=0;i--){
+                if (m[i] instanceof HasProperty){
+                    let p=this._pMap[m[i].value()];
                     p._required=true;
                 }
             }

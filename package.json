@@ -28,6 +28,6 @@
   "dependencies": {
     "@types/node": "^6.0.55",
     "raml-typeexpressions-parser": "0.0.9",
-    "raml-typesystem-interfaces": "^0.0.12"
+    "raml-typesystem-interfaces": "^0.0.13"
   }
 }
