@@ -720,7 +720,7 @@ export function parse(
     annotation:boolean=false,
     global:boolean=true,
     ignoreTypeAttr:boolean=false):ts.AbstractType{
-    let res=parse(name,n,r,defaultsToAny,annotation,global,ignoreTypeAttr);
+    let res=parse2(name,n,r,defaultsToAny,annotation,global,ignoreTypeAttr);
     if (res.getRegistry()==null){
         if (r!=ts.builtInRegistry()){
             (<any>res).registry=r;
