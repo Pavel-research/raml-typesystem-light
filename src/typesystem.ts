@@ -663,11 +663,11 @@ export abstract class AbstractType implements tsInterfaces.IParsedType, tsInterf
     protected supertypeAnnotations: {[aName: string]: tsInterfaces.IAnnotation}[];
 
 
-    protected registry: TypeRegistry;
+    protected _collection: IParsedTypeCollection;
 
 
-    getRegistry(){
-        return this.registry;
+    collection(){
+        return this._collection
     }
 
     getExtra(name: string): any {
@@ -2738,7 +2738,7 @@ export class AnnotatedFacet implements tsInterfaces.IAnnotatedElement {
     }
 }
 import parse = require("./parse");
-import {IParsedType, IPropertyInfo} from "raml-typesystem-interfaces/dist/typesystem-interfaces";
+import {IParsedType, IPropertyInfo, IParsedTypeCollection} from "raml-typesystem-interfaces/dist/typesystem-interfaces";
 /**
  * A model of annotated RAML type
  */

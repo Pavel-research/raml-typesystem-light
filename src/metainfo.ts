@@ -82,9 +82,9 @@ export class Annotation extends MetaInfo implements tsInterfaces.IAnnotation{
     definition(){
         var owner=this.owner();
         if (owner){
-            var reg=owner.getRegistry();
+            var reg=owner.collection();
             if (reg){
-                var tp=reg.get(this.facetName());
+                var tp=reg.getAnnotationType(this.facetName());
                 return tp;
             }
         }

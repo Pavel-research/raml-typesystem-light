@@ -18,6 +18,7 @@ import {TypeRegistry} from "./typesystem";
 import {ComponentShouldBeOfType} from "./restrictions";
 import su = require("./schemaUtil")
 import {KnownPropertyRestriction} from "./restrictions";
+import {IParsedTypeCollection} from "raml-typesystem-interfaces/dist/typesystem-interfaces";
 
 export enum NodeKind{
     SCALAR,
@@ -378,7 +379,8 @@ export function parseTypeCollection(n:ParseNode,tr:ts.TypeRegistry):TypeCollecti
             result.addAnnotationType(parse(x.key(),x,reg,false,true,false))
         });
     }
-
+    result.types().forEach(x=>(<any>x)._collection=result)
+    result.annotationTypes().forEach(x=>(<any>x)._collection=result)
     return result;
 }
 
@@ -712,24 +714,20 @@ function appendAnnotations(appendedInfo:ts.TypeInformation, childNode:ParseNode)
  * @param r
  * @returns {any}
  */
-export function parse(
+export function parseWithCollection(
     name: string,
     n:ParseNode,
-    r:ts.TypeRegistry=ts.builtInRegistry(),
+    r:IParsedTypeCollection,
     defaultsToAny:boolean=false,
     annotation:boolean=false,
     global:boolean=true,
     ignoreTypeAttr:boolean=false):ts.AbstractType{
-    let res=parse2(name,n,r,defaultsToAny,annotation,global,ignoreTypeAttr);
-    if (res.getRegistry()==null){
-        if (r!=ts.builtInRegistry()){
-            (<any>res).registry=r;
-        }
-    }
+    let res=parse(name,n,<ts.TypeRegistry>r.getTypeRegistry(),defaultsToAny,annotation,global,ignoreTypeAttr);
+    (<any>res)._collection=r;
     return res;
 }
 
-function parse2(
+function parse(
     name: string,
     n:ParseNode,
     r:ts.TypeRegistry=ts.builtInRegistry(),
