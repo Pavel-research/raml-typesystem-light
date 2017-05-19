@@ -506,7 +506,11 @@ export class TypeProto{
         }
         if (this.basicFacets) {
             this.basicFacets.forEach(x=> {
-                result[x.facetName()] = x.value();
+                var vc=x.value();
+                if (vc instanceof AbstractType){
+                    vc=storeAsJSON(vc);
+                }
+                result[x.facetName()] = vc;
             })
         }
         if (Object.keys(result).length==1&&!this.notAScalar){
@@ -609,6 +613,9 @@ export function toProto(type:AbstractType):TypeProto{
  */
 export function storeAsJSON(ts:AbstractType|TypeCollection) : any{
     if (ts instanceof AbstractType) {
+        if (ts.isBuiltin()){
+            return ts.name();
+        }
         return toProto(ts).toJSON();
     }
     else{
@@ -703,6 +710,7 @@ function appendAnnotations(appendedInfo:ts.TypeInformation, childNode:ParseNode)
             var aName = key.substring(1, key.length - 1);
             var aInstance = new meta.Annotation(aName, ch.value());
             aInstance.setOwnerFacet(appendedInfo);
+            aInstance._owner=appendedInfo._owner;
             appendedInfo.addAnnotation(aInstance);
         }
     }
@@ -883,13 +891,21 @@ function parse(
             }
         }
     }
-    var result=ts.derive(name,superTypes);
+    var result:AbstractType=null;
+    if (superTypes.length==1&&superTypes[0].isAnonymous()&&false){
+       // var ab:AbstractType= superTypes[0];
+       // ab.patchName(name);
+       // result=ab;
+    }
+    else {
+       result = ts.derive(name, superTypes);
+    }
     for(var i = 0 ; i < typePropAnnotations.length ; i++){
         var aArr1:tsInterfaces.IAnnotation[] = typePropAnnotations[i];
         result.addSupertypeAnnotation(aArr1,i);
     }
     if (r instanceof AccumulatingRegistry){
-        result = contributeToAccumulatingRegistry(result, r);
+        result = contributeToAccumulatingRegistry(<any>result, r);
     }
     var actualResult=result;
     var hasfacetsOrOtherStuffDoesNotAllowedInExternals:string=null;

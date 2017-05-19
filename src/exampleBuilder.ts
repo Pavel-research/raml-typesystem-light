@@ -1,3 +1,5 @@
+import ti = require("raml-typesystem-interfaces")
+import tsInterfaces = ti.tsInterfaces
 import rt=require("./typesystem")
 import meta=require("./metainfo")
 import {ComponentShouldBeOfType} from "./restrictions";
@@ -68,7 +70,7 @@ export function example(t:rt.AbstractType):any{
         t.putExtra(exCalcFlag,false)
     }
 }
-class Example {
+export class Example implements tsInterfaces.IExample{
     private _owner:any;
 
     constructor(
@@ -98,6 +100,19 @@ class Example {
     private _expandedValue:any;
 
     private isExpanded:boolean = false;
+
+    annotationsMap(){
+        let res:{ [name:string]:meta.Annotation[]}={};
+        var sc=this.scalarsAnnotations();
+        Object.keys(sc).forEach(x=>{
+            let l:meta.Annotation[]=[];
+            Object.keys(sc[x]).forEach(y=>{
+               l.push(sc[x][y]);
+            })
+            res[x]=l;
+        })
+        return res;
+    }
 
     private _scalarsAnnotations:
         {[pName:string]:{[aName:string]:meta.Annotation}} = {};
@@ -134,7 +149,6 @@ class Example {
         if(this.isXMLString()) {
             return this._value;
         }
-        
         if(this._owner) {
             return (<any>this)._owner.asXMLString();
         }
@@ -190,6 +204,10 @@ class Example {
         return this._expandedValue;
     }
 
+    value(){
+        return this.expandAsJSON();
+    }
+
     isSingle():boolean{
         return this._isSingle;
     }
@@ -206,8 +224,12 @@ class Example {
         return this._displayName;
     }
 
-    annotations():{[key:string]:meta.Annotation}{
-        return this._annotations;
+    annotations():meta.Annotation[]{
+        let res:meta.Annotation[]=[];
+        Object.keys(this._annotations).forEach(x=>{
+            res.push(this._annotations[x]);
+        })
+        return res;
     }
 
     name():string{
@@ -262,6 +284,7 @@ var toExample = function (owner: any, exampleObj:any, name:string=null,isSingle:
             var strict:boolean = scalarValue(exampleObj, "strict");
             var aObj:{[key:string]:meta.Annotation} = {};
             scalarAnnotaitons(exampleObj).forEach(x=>{
+                x._owner=owner._owner;
                 aObj[x.facetName()] = x;
             });
             example = new Example(val, name, displayName, description, strict, aObj, isSingle);
@@ -306,7 +329,7 @@ function scalarAnnotaitons(obj:any):meta.Annotation[]{
     return result;
 }
 
-function exampleFromInheritedType(inheritedType:rt.InheritedType) : Example[] {
+export function examplesFromInheritedType(inheritedType:rt.AbstractType) : Example[] {
     var result:Example[]=[]
     var ms1=inheritedType.oneMeta(meta.Examples);
     if (ms1){
@@ -317,7 +340,7 @@ function exampleFromInheritedType(inheritedType:rt.InheritedType) : Example[] {
             Object.keys(vl).forEach(key=> {
                 var name = Array.isArray(vl) ? null : key;
                 var exampleObj = vl[key];
-                var example = toExample({asXMLString: () => {
+                var example = toExample({ _owner:inheritedType,asXMLString: () => {
                     if(!xmlValues) {
                         xmlValues = ms1.asXMLStrings();
                     }

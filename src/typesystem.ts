@@ -666,10 +666,45 @@ export abstract class AbstractType implements tsInterfaces.IParsedType, tsInterf
     protected _collection: IParsedTypeCollection;
 
     options():IParsedType[]{
+        if (this.isUnion()) {
+            var res:IParsedType[]=[];
+            this.allSuperTypes().forEach(x => {
+                if (x instanceof UnionType) {
+                    var opts = x.options();
+                    res=res.concat(opts);
+                }
+            })
+            return _.unique(res);
+        }
+        return [this]
+    }
+    allOptions():IParsedType[]{
+        if (this.isUnion()) {
+            var res:IParsedType[]=[];
+            this.allSuperTypes().forEach(x => {
+                if (x instanceof UnionType) {
+                    var opts = x.allOptions();
+                    res=res.concat(opts);
+                }
+            })
+            return _.unique(res);
+        }
         return [this]
     }
 
+    examples():tsInterfaces.IExample[]{
+        return exO.examplesFromInheritedType(this);
+    }
+
     collection(){
+        if (!this._collection){
+            if ((<any>this)._contextMeta){
+                var cm:TypeInformation=(<any>this)._contextMeta;
+                if (cm){
+                    return cm.owner().collection();
+                }
+            }
+        }
         return this._collection
     }
 
@@ -684,7 +719,6 @@ export abstract class AbstractType implements tsInterfaces.IParsedType, tsInterf
     id(): number {
         return this.innerid;
     }
-
 
     knownProperties(): MatchesProperty[] {
         return <MatchesProperty[]>this.metaOfType(<any>MatchesProperty);
@@ -704,6 +738,10 @@ export abstract class AbstractType implements tsInterfaces.IParsedType, tsInterf
 
     constructor(protected _name: string) {
 
+    }
+
+    patchName(name:string){
+        this._name=name;
     }
 
     allFacets(): TypeInformation[] {
@@ -1912,6 +1950,9 @@ export class InheritedType extends AbstractType {
             if (another.hasOwnProperty(prop)) {
                 (<any>this)[prop] = (<any>another)[prop];
             }
+        }
+        if (Object.setPrototypeOf){
+            Object.setPrototypeOf(this,another);
         }
     }
 
