@@ -346,11 +346,11 @@ describe("Simple instanceof tests",function() {
 
 })
 function assertLength(e:number,restr:ts.Constraint[]){
-    var newRestr=rs.optimize(restr);
+    var newRestr=restr;
     assert.equal(newRestr.length,e);
 }
 function assertNothing(restr:ts.Constraint[]){
-    var newRestr=rs.optimize(restr);
+    var newRestr=restr;
     assert.equal(newRestr.length,1);
     assert.isTrue(newRestr[0] instanceof  NothingRestriction);
 }

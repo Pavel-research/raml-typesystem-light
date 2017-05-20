@@ -416,230 +416,230 @@ export function parsePropertyBean(n:ParseNode,tr:ts.TypeRegistry):PropertyBean{
     return result;
 }
 
-export class TypeProto{
-    name: string
-
-    properties:PropertyBean[];
-
-    basicFacets: ts.TypeInformation[];
-
-    facetDeclarations: meta.FacetDeclaration[]
-
-    annotations: Annotation[]
-
-    customFacets: meta.CustomFacet[]
-
-    notAScalar:boolean
-
-    superTypes: string[]
-
-    additionalProperties: boolean
-
-    toJSON(){
-        var result:{ [name:string]:any}={};
-        if (this.superTypes&&this.superTypes.length>0){
-            if (this.superTypes.length==1){
-                result['type']=this.superTypes[0];
-            }
-            else{
-                result['type']=this.superTypes;
-            }
-        }
-        if (this.customFacets){
-            this.customFacets.forEach(x=>result[x.facetName()]= x.value());
-        }
-        if (this.annotations){
-            this.annotations.forEach(x=>result["("+x.facetName()+")"]= x.value());
-        }
-
-        if (this.facetDeclarations&&this.facetDeclarations.length>0){
-            var facets:{ [name:string]:any}={};
-            this.facetDeclarations.forEach(x=>{
-                var nm= x.facetName();
-                if (x.isOptional()){
-                    nm=nm+"?";
-                }
-                var vl:any=null;
-                if (x.type().isAnonymous()){
-                    if (x.type().isEmpty()) {
-                        vl = typeToSignature(x.type());
-                    }
-                    else{
-                        vl=toProto(x.type()).toJSON();
-                    }
-                }
-                else{
-                    vl=typeToSignature(x.type());
-                }
-                facets[nm]=vl;
-            });
-            result['facets']=facets;
-        }
-        if (this.properties&&this.properties.length>0){
-            var properties:{ [name:string]:any}={};
-            this.properties.forEach(x=>{
-                var nm= x.id;
-                if (x.optional){
-                    nm=nm+"?";
-                }
-                if (x.additonal){
-                    nm="/.*/"
-                }
-                if (x.regExp){
-                    nm="/"+nm+"/";
-                }
-                var vl:any=null;
-                if (x.type.isAnonymous()){
-                    if (x.type.isEmpty()) {
-                        vl = typeToSignature(x.type);
-                    }
-                    else{
-                        vl=toProto(x.type).toJSON();
-                    }
-                }
-                else{
-                    vl=typeToSignature(x.type);
-                }
-                properties[nm]=vl;
-            });
-            result['properties']=properties;
-        }
-        if (this.basicFacets) {
-            this.basicFacets.forEach(x=> {
-                var vc=x.value();
-                if (vc instanceof AbstractType){
-                    vc=storeAsJSON(vc);
-                }
-                result[x.facetName()] = vc;
-            })
-        }
-        if (Object.keys(result).length==1&&!this.notAScalar){
-            if (result['type']){
-                return result['type'];
-            }
-        }
-        if(this.additionalProperties!==undefined){
-            result["additionalProperties"] = this.additionalProperties;
-        }
-
-        return result;
-    }
-}
-
-export function toProto(type:AbstractType):TypeProto{
-    var result:TypeProto=new TypeProto();
-    result.name=type.name();
-    result.superTypes=type.superTypes().map(x=>typeToSignature(x));
-    result.annotations=[];
-    result.customFacets=[];
-    result.facetDeclarations=[];
-    result.basicFacets=[];
-    result.properties=[];
-    var pmap:{[name:string]:PropertyBean}={}
-    type.declaredMeta().forEach(x=>{
-        if (x instanceof meta.Annotation){
-            result.annotations.push(x);
-        }
-        else if (x instanceof meta.CustomFacet){
-            result.customFacets.push(x);
-        }else if (x instanceof meta.NotScalar){
-            result.notAScalar=true;
-        }
-        else if (x instanceof FacetDeclaration){
-            result.facetDeclarations.push(x);
-        }
-        else{
-            if (x instanceof rs.HasProperty){
-                if (pmap.hasOwnProperty(x.value())){
-                    pmap[x.value()].optional=false;
-                }
-                else{
-                    var pbean=new PropertyBean();
-                    pbean.optional=false;
-                    pbean.id= x.value();
-                    pbean.type=ts.ANY;
-                    pmap[x.value()]=pbean;
-                }
-            }
-            else if (x instanceof rs.AdditionalPropertyIs){
-
-                var pbean=new PropertyBean();
-                pbean.optional=false;
-                pbean.id= "/.*/";
-                pbean.additonal=true;
-                pbean.type= x.value();
-                pmap['/.*/']=pbean;
-            }
-            else if (x instanceof rs.MapPropertyIs){
-                var pbean=new PropertyBean();
-                pbean.optional=false;
-                pbean.id= x.regexpValue();
-                pbean.regExp=true;
-                pbean.type= x.value();
-                pmap[x.regexpValue()]=pbean;
-            }
-            else if (x instanceof rs.PropertyIs){
-                if (pmap.hasOwnProperty(x.propertyName())){
-                    pmap[x.propertyName()].type= x.value();
-                }
-                else{
-                    var pbean=new PropertyBean();
-                    pbean.optional=true;
-                    pbean.id= x.propertyName();
-                    pbean.type= x.value();
-                    pmap[x.propertyName()]=pbean;
-                }
-            }
-            else if (x instanceof rs.KnownPropertyRestriction) {
-                result.additionalProperties = x.value();
-            }
-            else if(x instanceof meta.DiscriminatorValue){
-                if((<meta.DiscriminatorValue>x).isStrict()){
-                    result.basicFacets.push(x);
-                }
-            }
-            else if(!(x instanceof meta.HasPropertiesFacet)) {
-                result.basicFacets.push(x);
-            }
-        }
-    })
-    Object.keys(pmap).forEach(x=>result.properties.push(pmap[x]));
-    return result;
-}
-
-/***
- * stores a type to JSON structure
- * @param ts
- */
-export function storeAsJSON(ts:AbstractType|TypeCollection) : any{
-    if (ts instanceof AbstractType) {
-        if (ts.isBuiltin()){
-            return ts.name();
-        }
-        return toProto(ts).toJSON();
-    }
-    else{
-        return storeTypeCollection(<TypeCollection>ts);
-    }
-}
-function storeTypeCollection(tc:TypeCollection):any{
-    var res:any={};
-    var types:any={};
-    tc.types().forEach(x=>{
-        types[x.name()]=storeAsJSON(x);
-    })
-    if (Object.keys(types).length>0) {
-        res["types"] = types;
-    }
-    var types:any={};
-    tc.annotationTypes().forEach(x=>{
-        types[x.name()]=storeAsJSON(x);
-    })
-    if (Object.keys(types).length>0) {
-        res["annotationTypes"] = types;
-    }
-    return res;
-}
+// export class TypeProto{
+//     name: string
+//
+//     properties:PropertyBean[];
+//
+//     basicFacets: ts.TypeInformation[];
+//
+//     facetDeclarations: meta.FacetDeclaration[]
+//
+//     annotations: Annotation[]
+//
+//     customFacets: meta.CustomFacet[]
+//
+//     notAScalar:boolean
+//
+//     superTypes: string[]
+//
+//     additionalProperties: boolean
+//
+//     toJSON(){
+//         var result:{ [name:string]:any}={};
+//         if (this.superTypes&&this.superTypes.length>0){
+//             if (this.superTypes.length==1){
+//                 result['type']=this.superTypes[0];
+//             }
+//             else{
+//                 result['type']=this.superTypes;
+//             }
+//         }
+//         if (this.customFacets){
+//             this.customFacets.forEach(x=>result[x.facetName()]= x.value());
+//         }
+//         if (this.annotations){
+//             this.annotations.forEach(x=>result["("+x.facetName()+")"]= x.value());
+//         }
+//
+//         if (this.facetDeclarations&&this.facetDeclarations.length>0){
+//             var facets:{ [name:string]:any}={};
+//             this.facetDeclarations.forEach(x=>{
+//                 var nm= x.facetName();
+//                 if (x.isOptional()){
+//                     nm=nm+"?";
+//                 }
+//                 var vl:any=null;
+//                 if (x.type().isAnonymous()){
+//                     if (x.type().isEmpty()) {
+//                         vl = typeToSignature(x.type());
+//                     }
+//                     else{
+//                         vl=toProto(x.type()).toJSON();
+//                     }
+//                 }
+//                 else{
+//                     vl=typeToSignature(x.type());
+//                 }
+//                 facets[nm]=vl;
+//             });
+//             result['facets']=facets;
+//         }
+//         if (this.properties&&this.properties.length>0){
+//             var properties:{ [name:string]:any}={};
+//             this.properties.forEach(x=>{
+//                 var nm= x.id;
+//                 if (x.optional){
+//                     nm=nm+"?";
+//                 }
+//                 if (x.additonal){
+//                     nm="/.*/"
+//                 }
+//                 if (x.regExp){
+//                     nm="/"+nm+"/";
+//                 }
+//                 var vl:any=null;
+//                 if (x.type.isAnonymous()){
+//                     if (x.type.isEmpty()) {
+//                         vl = typeToSignature(x.type);
+//                     }
+//                     else{
+//                         vl=toProto(x.type).toJSON();
+//                     }
+//                 }
+//                 else{
+//                     vl=typeToSignature(x.type);
+//                 }
+//                 properties[nm]=vl;
+//             });
+//             result['properties']=properties;
+//         }
+//         if (this.basicFacets) {
+//             this.basicFacets.forEach(x=> {
+//                 var vc=x.value();
+//                 if (vc instanceof AbstractType){
+//                     vc=storeAsJSON(vc);
+//                 }
+//                 result[x.facetName()] = vc;
+//             })
+//         }
+//         if (Object.keys(result).length==1&&!this.notAScalar){
+//             if (result['type']){
+//                 return result['type'];
+//             }
+//         }
+//         if(this.additionalProperties!==undefined){
+//             result["additionalProperties"] = this.additionalProperties;
+//         }
+//
+//         return result;
+//     }
+// }
+//
+// export function toProto(type:AbstractType):TypeProto{
+//     var result:TypeProto=new TypeProto();
+//     result.name=type.name();
+//     result.superTypes=type.superTypes().map(x=>typeToSignature(x));
+//     result.annotations=[];
+//     result.customFacets=[];
+//     result.facetDeclarations=[];
+//     result.basicFacets=[];
+//     result.properties=[];
+//     var pmap:{[name:string]:PropertyBean}={}
+//     type.declaredMeta().forEach(x=>{
+//         if (x instanceof meta.Annotation){
+//             result.annotations.push(x);
+//         }
+//         else if (x instanceof meta.CustomFacet){
+//             result.customFacets.push(x);
+//         }else if (x instanceof meta.NotScalar){
+//             result.notAScalar=true;
+//         }
+//         else if (x instanceof FacetDeclaration){
+//             result.facetDeclarations.push(x);
+//         }
+//         else{
+//             if (x instanceof rs.HasProperty){
+//                 if (pmap.hasOwnProperty(x.value())){
+//                     pmap[x.value()].optional=false;
+//                 }
+//                 else{
+//                     var pbean=new PropertyBean();
+//                     pbean.optional=false;
+//                     pbean.id= x.value();
+//                     pbean.type=ts.ANY;
+//                     pmap[x.value()]=pbean;
+//                 }
+//             }
+//             else if (x instanceof rs.AdditionalPropertyIs){
+//
+//                 var pbean=new PropertyBean();
+//                 pbean.optional=false;
+//                 pbean.id= "/.*/";
+//                 pbean.additonal=true;
+//                 pbean.type= x.value();
+//                 pmap['/.*/']=pbean;
+//             }
+//             else if (x instanceof rs.MapPropertyIs){
+//                 var pbean=new PropertyBean();
+//                 pbean.optional=false;
+//                 pbean.id= x.regexpValue();
+//                 pbean.regExp=true;
+//                 pbean.type= x.value();
+//                 pmap[x.regexpValue()]=pbean;
+//             }
+//             else if (x instanceof rs.PropertyIs){
+//                 if (pmap.hasOwnProperty(x.propertyName())){
+//                     pmap[x.propertyName()].type= x.value();
+//                 }
+//                 else{
+//                     var pbean=new PropertyBean();
+//                     pbean.optional=true;
+//                     pbean.id= x.propertyName();
+//                     pbean.type= x.value();
+//                     pmap[x.propertyName()]=pbean;
+//                 }
+//             }
+//             else if (x instanceof rs.KnownPropertyRestriction) {
+//                 result.additionalProperties = x.value();
+//             }
+//             else if(x instanceof meta.DiscriminatorValue){
+//                 if((<meta.DiscriminatorValue>x).isStrict()){
+//                     result.basicFacets.push(x);
+//                 }
+//             }
+//             else if(!(x instanceof meta.HasPropertiesFacet)) {
+//                 result.basicFacets.push(x);
+//             }
+//         }
+//     })
+//     Object.keys(pmap).forEach(x=>result.properties.push(pmap[x]));
+//     return result;
+// }
+//
+// /***
+//  * stores a type to JSON structure
+//  * @param ts
+//  */
+// export function storeAsJSON(ts:AbstractType|TypeCollection) : any{
+//     if (ts instanceof AbstractType) {
+//         if (ts.isBuiltin()){
+//             return ts.name();
+//         }
+//         return toProto(ts).toJSON();
+//     }
+//     else{
+//         return storeTypeCollection(<TypeCollection>ts);
+//     }
+// }
+// function storeTypeCollection(tc:TypeCollection):any{
+//     var res:any={};
+//     var types:any={};
+//     tc.types().forEach(x=>{
+//         types[x.name()]=storeAsJSON(x);
+//     })
+//     if (Object.keys(types).length>0) {
+//         res["types"] = types;
+//     }
+//     var types:any={};
+//     tc.annotationTypes().forEach(x=>{
+//         types[x.name()]=storeAsJSON(x);
+//     })
+//     if (Object.keys(types).length>0) {
+//         res["annotationTypes"] = types;
+//     }
+//     return res;
+// }
 
 function typeToSignature(t:ts.AbstractType):string{
     if (t.isAnonymous()){

@@ -276,10 +276,7 @@ export abstract class TypeInformation implements tsInterfaces.ITypeFacet {
             }
         }
         var facetEntry = new AnnotatedFacet(this, registry);
-        var aPluginStatuses = applyAnnotationValidationPlugins(facetEntry);
-        for (var ps of aPluginStatuses) {
-            result.addSubStatus(ps);
-        }
+
         setValidationPath(result, {name: this.facetName()});
         return result;
     }
@@ -470,145 +467,13 @@ interface PropertyInfos {
     [name: string]: PropertyInfoHandle;
 }
 
-class PropertyCyclesValidator {
 
-
-    getInfos(t: AbstractType): PropertyInfos {
-        if (t.getExtra("PInfos")) {
-            return t.getExtra("PInfos");
-        }
-        var m: PropertyInfos = {};
-
-        t.meta().forEach(x => {
-            if (x instanceof restr.HasProperty) {
-                var id = (<restr.HasProperty>x).value();
-                m[id] = {name: id, type: null};
-            }
-        })
-        t.meta().forEach(x => {
-            if (x instanceof restr.PropertyIs) {
-                var id = (<restr.PropertyIs>x).propertyName();
-                if (m[id]) {
-                    m[id].type = (<restr.PropertyIs>x).value();
-                }
-            }
-        })
-        t.putExtra("PInfos", m);
-
-        return m;
-    }
-
-
-    validate(t: AbstractType, visited: PropertyInfoHandle[]): boolean {
-        var i = this.getInfos(t);
-        var result = false;
-        Object.keys(i).forEach(x => {
-            result = result || this.validateInfo(i[x], visited);
-        })
-        return result;
-    }
-
-    validateInfo(t: PropertyInfoHandle, visited: PropertyInfoHandle[]): boolean {
-        if (visited.some(y => y == t)) {
-            return true;
-        }
-        else {
-            if (t.type instanceof UnionType) {
-                var ut = <UnionType>t.type;
-                var passing = true;
-                ut.options().forEach(o => {
-                    if (!this.validate(o, [t].concat(visited))) {
-                        passing = false;
-                    }
-                })
-                return passing;
-            }
-            if (t.type.isArray()) {
-
-            }
-            else {
-                return this.validate(t.type, [t].concat(visited));
-            }
-        }
-    }
-
-    validateType(t: AbstractType): string[] {
-        var i = this.getInfos(t);
-        var result: string[] = [];
-        Object.keys(i).forEach(x => {
-            if (this.validateInfo(i[x], [])) {
-                result.push(x);
-            }
-        })
-        return result;
-    }
-}
 
 export class RestrictionsConflict extends Status {
     constructor(protected _conflicting: Constraint, protected _stack: RestrictionStackEntry, protected source: any) {
         super(Status.ERROR, messageRegistry.RESTRICTIONS_CONFLICT.code, null, source);
-
-        this.computeMessage();
     }
 
-    private computeMessage() {
-        var conflictingMessage: string = null;
-        if (this._stack != null) {
-            if (this._stack.getRestriction() instanceof restr.MinMaxRestriction) {
-                var mmr: restr.MinMaxRestriction = <restr.MinMaxRestriction>this._stack.getRestriction();
-                conflictingMessage = this._conflicting.conflictMessage(mmr.facetPath(), mmr.value());
-            }
-        }
-        if (conflictingMessage == null) {
-            conflictingMessage = this._conflicting + " and " + (this._stack != null ? this._stack.getRestriction().toString() : "");
-        }
-        var typeInfo: string = "";
-        if (this.source instanceof AbstractType) {
-            var path: tsInterfaces.IValidationPath[] = [];
-            var rse = this._stack;
-            while (rse) {
-                var restri = rse.getRestriction();
-                if (restri instanceof PropertyIs) {
-                    var vp: tsInterfaces.IValidationPath = {name: (<PropertyIs>restri).propId()};
-                    if (path.length > 0) {
-                        vp.child = path[path.length - 1];
-                    }
-                    path.push(vp);
-                }
-                rse = rse.pop();
-            }
-            setValidationPath(this, path.pop());
-            var arc = restr.anotherRestrictionComponent();
-            if (arc) {
-                typeInfo = ` between types '${typePath(<AbstractType>this.source)}' and '${typePath(<AbstractType>arc)}'`;
-            }
-            else {
-                typeInfo = ` in type '${typePath(<AbstractType>this.source)}'`;
-            }
-        }
-        this.message = `Restrictions conflict${typeInfo}: ` + conflictingMessage;
-    }
-
-    getConflictDescription(): string {
-        var rs = "";
-        rs += "Restrictions coflict:\n";
-        rs += this._stack.getRestriction() + " conflicts with " + this._conflicting + "\n";
-        rs += "at\n";
-        rs += this._stack.pop();
-        return rs;
-    }
-
-    getConflicting(): Constraint {
-        return this._conflicting;
-    }
-
-    getStack(): RestrictionStackEntry {
-        return this._stack;
-    }
-
-    toRestriction() {
-        return new NothingRestrictionWithLocation(this._stack, this.message, this._conflicting);
-    }
 }
 var globalId = 0;
 import exO=require("./exampleBuilder")
@@ -663,6 +528,20 @@ export abstract class AbstractType implements tsInterfaces.IParsedType, tsInterf
     protected supertypeAnnotations: {[aName: string]: tsInterfaces.IAnnotation}[];
 
 
+    checkConfluent(): Status {
+        if (this.computeConfluent) {
+            return ok();
+        }
+        this.computeConfluent = true;
+        var arcc = restr.anotherRestrictionComponentsCount();
+        try {
+
+            return ok();
+        } finally {
+            this.computeConfluent = false;
+            restr.releaseAnotherRestrictionComponent(arcc);
+        }
+    }
     protected _collection: IParsedTypeCollection;
 
     options():IParsedType[]{
@@ -806,176 +685,11 @@ export abstract class AbstractType implements tsInterfaces.IParsedType, tsInterf
 
     validateType(tr: TypeRegistry = builtInRegistry()): Status {
         var rs = new Status(Status.OK, "", "", this);
-        this.validateHierarchy(rs);
-        if (this.getExtra(tsInterfaces.PARSE_ERROR)) {
-            rs.addSubStatus(this.getExtra(tsInterfaces.PARSE_ERROR));
-        }
-        if (rs.isOk()) {
-            rs.addSubStatus(this.checkConfluent());
-
-            if (this.isExternal() && this.kind() == "external") {
-                var extType = <ExternalType><any>this;
-
-                if (extType.isJSON()) {
-                    rs.addSubStatus(error(messageRegistry.EXT, this, {}));
-                }
-            }
-            if (rs.isOk()) {
-                this.superTypes().forEach(x => {
-                    if (x.isAnonymous()) {
-                        var superStatus = x.validateType(tr);
-                        if (!superStatus.isOk()) {
-                            setValidationPath(superStatus, {name: "type"});
-                            rs.addSubStatus(superStatus)
-                        }
-                    }
-                })
-            }
-        }
-
-        if (this.getExtra(SCHEMA_AND_TYPE)) {
-            rs.addSubStatus(error(messageRegistry.SCHEMA_AND_TYPE, this));
-        }
-        if (rs.isOk()) {
-            this.validateMeta(tr).getErrors().forEach(x => rs.addSubStatus(x));
-        }
-        //if (this.isPolymorphic()||(this.isUnion())) {
-        //    rs.addSubStatus(this.canDoAc());
-        //}
-
-
-        if (this.isObject()) {
-            var required: {[name: string]: boolean} = {};
-            this.restrictions().forEach(x => {
-                if (x.owner() != this) {
-                    if (x instanceof restr.HasProperty) {
-                        required[x.value()] = true;
-                    }
-                }
-            });
-            this.declaredMeta().forEach(x => {
-                if (x instanceof restr.HasProperty) {
-                    delete required[x.value()];
-                }
-            })
-            this.declaredMeta().forEach(x => {
-                if (x instanceof restr.PropertyIs) {
-                    var pr: restr.PropertyIs = x;
-                    if (required.hasOwnProperty(pr.propertyName())) {
-                        rs.addSubStatus(error(messageRegistry.REQUIRED_OVERRIDE_OPTIONAL,
-                            this, {propertyName: pr.propertyName()}));
-                    }
-                }
-            })
-            var propertyCycles = new PropertyCyclesValidator().validateType(this);
-            if (propertyCycles.length > 0) {
-                propertyCycles.forEach(p => {
-                    var st = error(messageRegistry.CYCLIC_DEPENDENCY, this, {typeName: p});
-                    setValidationPath(st, {name: p})
-                    rs.addSubStatus(st);
-                })
-
-            }
-        }
-
-        if (this.supertypeAnnotations) {
-            for (var i = 0; i < this.supertypeAnnotations.length; i++) {
-                var aMap = this.supertypeAnnotations[i];
-                for (var aName of Object.keys(aMap)) {
-                    var a = aMap[aName];
-                    var aStatus = <Status>a.validateSelf(tr);
-                    if (!aStatus.isOk()) {
-                        setValidationPath(aStatus, {name: "type", child: {name: i}});
-                        rs.addSubStatus(aStatus);
-                    }
-                }
-            }
-        }
-        var pluginStatuses = applyTypeValidationPlugins(this, tr);
-        for (var ps of pluginStatuses) {
-            rs.addSubStatus(ps);
-        }
-        var typeEntry = new AnnotatedType(this, tr);
-        var aPluginStatuses = applyAnnotationValidationPlugins(typeEntry);
-        for (var ps of aPluginStatuses) {
-            rs.addSubStatus(ps);
-        }
         return rs;
     }
 
 
-    public validateHierarchy(rs: Status) {
-        if (!this.isAnonymous()) {
-            if (this.getExtra(tsInterfaces.TOP_LEVEL_EXTRA) && builtInRegistry().get(this.name())) {
-                rs.addSubStatus(error(messageRegistry.REDEFINIG_BUILDTIN, this, {typeName: this.name()}));
-            }
-        }
 
-        if (this.isSubTypeOf(RECURRENT)) {
-            rs.addSubStatus(error(messageRegistry.RECURRENT_DEFINITION, this), "type")
-        }
-
-        if (this.isSubTypeOf(UNKNOWN)) {
-            rs.addSubStatus(error(messageRegistry.INHERITING_UNKNOWN_TYPE, this), "type")
-        }
-        if (this.isUnion()) {
-            var tf = this.typeFamily();
-            if (tf.some(x => x.isSubTypeOf(RECURRENT))) {
-                rs.addSubStatus(error(messageRegistry.RECURRENT_UNION_OPTION, this), "type")
-            }
-            if (tf.some(x => x.isSubTypeOf(UNKNOWN))) {
-                rs.addSubStatus(error(messageRegistry.UNKNOWN_UNION_OPTION, this), "type")
-            }
-        }
-        if (this.isArray()) {
-            const fs = this.familyWithArray();
-            var ps = this.getExtra(tsInterfaces.HAS_ITEMS) ? "items" : "type";
-            if ((fs.indexOf(this) != -1) || fs.some(x => x === RECURRENT)) {
-
-                rs.addSubStatus(error(messageRegistry.RECURRENT_ARRAY_DEFINITION, this), ps)
-            }
-            else if (fs.some(x => x === UNKNOWN)) {
-
-                var componentTypeName = this.oneMeta(ComponentShouldBeOfType).value().name();
-                rs.addSubStatus(error(messageRegistry.UNKNOWN_ARRAY_COMPONENT,
-                    this, {componentTypeName: componentTypeName}), ps)
-            }
-        }
-        var supers = this.superTypes();
-        var hasExternal: boolean = false;
-        var hasNotExternal: boolean = false;
-
-        if (supers.length > 1) {
-            supers.forEach(x => {
-                if (x.isExternal()) {
-                    hasExternal = true;
-                }
-                else {
-                    hasNotExternal = true;
-                }
-            })
-        }
-        if (hasExternal && hasNotExternal) {
-            rs.addSubStatus(error(messageRegistry.EXTERNALS_MIX, this));
-        }
-        if (this instanceof UnionType) {
-            var ut = <UnionType><any>this;
-            ut.options().forEach(x => {
-                if (x.isExternal()) {
-                    rs.addSubStatus(error(messageRegistry.EXTERNALS_MIX, this));
-                }
-            })
-        }
-        if (this.isExternal()) {
-            if (this.getExtra(tsInterfaces.HAS_FACETS)) {
-                var fs = error(messageRegistry.EXTERNAL_FACET, this,
-                    {name: this.getExtra(tsInterfaces.HAS_FACETS)});
-                setValidationPath(fs, {name: this.getExtra(tsInterfaces.HAS_FACETS)});
-                rs.addSubStatus(fs);
-            }
-        }
-
-    };
 
     private familyWithArray() {
         var ts = this.allSuperTypes();
@@ -987,116 +701,7 @@ export abstract class AbstractType implements tsInterfaces.IParsedType, tsInterf
         return ts;
     }
 
-    validateMeta(tr: TypeRegistry): Status {
-        var rs = new Status(Status.OK, "", "", this);
-        this.declaredMeta().forEach(x => {
-            x.validateSelf(tr).getErrors().forEach(y => rs.addSubStatus(y))
 
-        })
-
-        this.validateFacets(rs);
-        return rs;
-    }
-
-    private validateFacets(rs: Status) {
-        var fds: {[name: string ]: FacetDeclaration} = {}
-        var super_facets: {[name: string ]: FacetDeclaration} = {}
-        var rfds: {[name: string ]: FacetDeclaration} = {}
-
-        this.meta().forEach(x => {
-            if (x instanceof FacetDeclaration) {
-                var fd: FacetDeclaration = x;
-
-                fds[fd.actualName()] = fd;
-                if (!fd.isOptional()) {
-                    if (fd.owner() !== this) {
-                        rfds[fd.actualName()] = fd;
-                    }
-                }
-                if (fd.owner() != this) {
-                    super_facets[fd.actualName()] = fd;
-                }
-
-            }
-        })
-        this.declaredMeta().forEach(x => {
-            if (x instanceof FacetDeclaration) {
-                var fd: FacetDeclaration = x;
-                if (fd.owner() == this) {
-                    var an = fd.actualName();
-                    if (super_facets.hasOwnProperty(an)) {
-                        rs.addSubStatus(error(messageRegistry.OVERRIDE_FACET,
-                            this, {name: an}));
-                    }
-
-                    var fp = fr.getInstance().facetPrototypeWithName(an);
-                    if (fp && fp.isApplicable(this) || an == "type" ||
-                        fd.facetName() == "properties" || an == "schema" || an == "facets" || an == "uses") {
-                        rs.addSubStatus(error(messageRegistry.OVERRIDE_BUILTIN_FACET,
-                            this, {name: an}));
-                    }
-
-                    if (an.charAt(0) == '(') {
-                        rs.addSubStatus(error(messageRegistry.FACET_START_BRACKET,
-                            this, {name: an}));
-                    }
-                }
-            }
-        })
-        var knownPropertySet: {[name: string]: boolean} = {}
-        this.meta().forEach(x => {
-            if (x instanceof PropertyIs) {
-                knownPropertySet[(<PropertyIs>x).propId()] = true;
-            }
-        });
-        for (var x of this.meta()) {
-            if (x instanceof CustomFacet) {
-                var cd: CustomFacet = x;
-                var facetName = cd.facetName();
-                if (fds.hasOwnProperty(facetName)) {
-                    var facet = fds[facetName];
-                    var ft = facet.value();
-                    if (facet.owner() == this && cd.owner() == this) {
-                        var err = error(messageRegistry.FACET_CAN_NOT_BE_FIXED_BY_THE_DECLARING_TYPE, cd);
-                        err.setValidationPath({name: facetName});
-                        rs.addSubStatus(err);
-                    }
-                    else {
-                        rs.addSubStatus(ft.validateDirect(cd.value(), false, false));
-                        delete rfds[facetName];
-                    }
-                }
-                else {
-                    if (this.isExternal()) {
-                        rs.addSubStatus(error(messageRegistry.FACET_PROHIBITED_FOR_EXTERNALS,
-                            cd, {facetName: facetName}, Status.ERROR, true));
-                    }
-                    else {
-                        rs.addSubStatus(error(messageRegistry.UNKNOWN_FACET,
-                            cd, {facetName: facetName}, Status.ERROR, true));
-                    }
-                }
-            }
-            // if (x instanceof MapPropertyIs){
-            //     var mm:MapPropertyIs=x;
-            //     Object.keys(knownPropertySet).forEach(c=>{
-            //         try {
-            //             if (c.match(mm.regexpValue())) {
-            //                 var regexpText = '/' + mm.regexpValue().toString() + '/';
-            //                
-            //                 rs.addSubStatus(new Status(Status.WARNING, 0, `Pattern property '${regexpText}' conflicts with property: '${c}'`, this));
-            //             }
-            //         } catch (e){
-            //             //ignore incorrect regexps here
-            //         }
-            //     })
-            // }
-        }
-        if (Object.getOwnPropertyNames(rfds).length > 0) {
-            rs.addSubStatus(error(messageRegistry.MISSING_REQUIRED_FACETS,
-                this, {facetsList: Object.keys(rfds).map(x => `'${x}'`).join(",")}))
-        }
-    };
 
     public allSuperTypes(): AbstractType[] {
         var rs: AbstractType[] = [];
@@ -1181,32 +786,6 @@ export abstract class AbstractType implements tsInterfaces.IParsedType, tsInterf
     }
 
 
-    checkConfluent(): Status {
-        if (this.computeConfluent) {
-            return ok();
-        }
-        this.computeConfluent = true;
-        var arcc = restr.anotherRestrictionComponentsCount();
-        try {
-            var os = restr.optimize(this.restrictions());
-            var ns = _.find(os, x => x instanceof NothingRestriction);
-            if (ns) {
-                var lstack: RestrictionStackEntry = null;
-                var another: Constraint = null;
-                if (ns instanceof NothingRestrictionWithLocation) {
-                    var nswl: NothingRestrictionWithLocation = ns;
-                    lstack = nswl.getStack();
-                    another = nswl.another();
-                }
-                var status = new RestrictionsConflict(another, lstack, this);
-                return status;
-            }
-            return ok();
-        } finally {
-            this.computeConfluent = false;
-            restr.releaseAnotherRestrictionComponent(arcc);
-        }
-    }
 
     /**
      *
@@ -1549,13 +1128,8 @@ export abstract class AbstractType implements tsInterfaces.IParsedType, tsInterf
         if (t1.isScalar() && t0.isScalar()) {
             return ok();
         }
-        var it = intersect("", [t0, t1]);
-        var innerCheckConfluent = it.checkConfluent();
-        if (innerCheckConfluent.isOk()) {
-            return this.checkDiscriminator(t0, t1);
+        return this.checkDiscriminator(t0, t1);
 
-        }
-        return ok();
     }
 
     private _properties:IPropertyInfo[]=null;
@@ -2783,68 +2357,7 @@ export class AnnotatedFacet implements tsInterfaces.IAnnotatedElement {
 }
 import parse = require("./parse");
 import {IParsedType, IPropertyInfo, IParsedTypeCollection} from "raml-typesystem-interfaces/dist/typesystem-interfaces";
-/**
- * A model of annotated RAML type
- */
-export class AnnotatedType implements tsInterfaces.IAnnotatedElement {
 
-    constructor(private _type: AbstractType, protected reg: tsInterfaces.ITypeRegistry) {
-    }
-
-    private _annotations: tsInterfaces.IAnnotationInstance[];
-
-    private _annotationsMap: {[key: string]: tsInterfaces.IAnnotationInstance};
-
-    kind(): string {
-        return "AnnotatedType";
-    }
-
-    annotationsMap(): {[key: string]: tsInterfaces.IAnnotationInstance} {
-        if (!this._annotationsMap) {
-            this._annotationsMap = {};
-            this.annotations().forEach(x => {
-                var n = x.name();
-                var ind = n.lastIndexOf(".");
-                if (ind >= 0) {
-                    n = n.substring(ind + 1);
-                }
-                this._annotationsMap[n] = x
-            });
-        }
-        return this._annotationsMap;
-    }
-
-    annotations(): tsInterfaces.IAnnotationInstance[] {
-        if (!this._annotations) {
-            this._annotations = this._type.meta().filter(x =>
-            x.kind() == tsInterfaces.MetaInformationKind.Annotation).map(
-                x => new AnnotationInstance(<tsInterfaces.IAnnotation><any>x, this.reg));
-        }
-        return this._annotations;
-    }
-
-    /**
-     * JSON representation of the type
-     */
-    value(): any {
-        return parse.storeAsJSON(this._type);
-    }
-
-    /**
-     * Type name
-     */
-    name(): string {
-        return this._type.name();
-    }
-
-    /**
-     * The type itself
-     * @returns {IParsedType}
-     */
-    entry(): tsInterfaces.IParsedType {
-        return this._type;
-    }
-}
 
 export class AnnotationInstance implements tsInterfaces.IAnnotationInstance {
 
@@ -2876,92 +2389,4 @@ export class AnnotationInstance implements tsInterfaces.IAnnotationInstance {
     annotation(): tsInterfaces.IAnnotation {
         return this.actual;
     }
-}
-
-
-/**
- * Apply registered type validation plugins to the type
- * @param t type to be validated
- * @param reg context type registry
- * @param skipOk whether to omit OK issues
- * @returns an array of {tsInterfaces.IStatus}
- */
-export function applyAnnotationValidationPlugins(e: tsInterfaces.IAnnotatedElement): Status[] {
-
-    var plugins = tsInterfaces.getAnnotationValidationPlugins();
-    var result: Status[] = [];
-    for (var tv of plugins) {
-        var issues: tsInterfaces.PluginValidationIssue[] = tv.process(e);
-        if (issues) {
-            issues.forEach(x => {
-                result.push(toStatus(x, tv.id(), e.entry()));
-            });
-        }
-    }
-    return result;
-}
-
-
-/**
- * Apply registered type validation plugins to the type
- * @param t type to be validated
- * @param reg context type registry
- * @param skipOk whether to omit OK issues
- * @returns an array of {tsInterfaces.IStatus}
- */
-export function applyTypeValidationPlugins(t: tsInterfaces.IParsedType, reg: tsInterfaces.ITypeRegistry): Status[] {
-
-    var plugins = tsInterfaces.getTypeValidationPlugins();
-    var result: Status[] = [];
-    for (var tv of plugins) {
-        var issues: tsInterfaces.PluginValidationIssue[] = tv.process(t, reg);
-        if (issues) {
-            issues.forEach(x => {
-                result.push(toStatus(x, tv.id(), t));
-            });
-        }
-    }
-    return result;
-}
-
-function toStatus(pvi: tsInterfaces.PluginValidationIssue, pluginId: string, src: any): Status {
-    var severity = pvi.isWarning ? Status.WARNING : Status.ERROR;
-    var issueCode = pvi.issueCode || pluginId;
-    var message = pvi.message || `The ${pluginId} plugin reports an error`;
-    var status = new Status(severity, issueCode, message, src);
-    status.setValidationPath(pvi.path);
-    return status;
-}
-
-export function toValidationPath(p: string): tsInterfaces.IValidationPath {
-
-    if (!p) {
-        return null;
-    }
-    p = p.trim();
-    if (p.length == 0) {
-        return null;
-    }
-    if (p.charAt(0) == "#") {
-        p = p.substring(1);
-    }
-    if (p.charAt(0) == "/") {
-        p = p.substring(1);
-    }
-    if (p.length == 0) {
-        return null;
-    }
-    let arr = p.split("/");
-    let result: IValidationPath = {
-        name: arr[0]
-    }
-    let prev = result;
-    for (var i = 1; i < arr.length; i++) {
-        let vp = {
-            name: arr[i]
-        }
-        prev.child = vp;
-        prev = vp;
-    }
-    return result;
 }

@@ -12,5 +12,5 @@ export function parseJSONTypeCollection(type: any, rt?: any): any {
 }
 
 export function storeAsJSON(ts: any): any {
-    return pps.storeAsJSON(ts);
+    return "";
 }

@@ -1,6 +1,6 @@
 {
-  "name": "raml-typesystem-light",
-  "version": "0.0.15",
+  "name": "raml-typesystem-light-light",
+  "version": "0.0.16",
   "private": false,
   "scripts": {
     "test-cov": " ./node_modules/.bin/istanbul cover _mocha dist/tests/*Tests.js",

@@ -94,45 +94,7 @@ export class Annotation extends MetaInfo implements tsInterfaces.IAnnotation{
     private _ownerFacet:tsInterfaces.ITypeFacet;
 
     validateSelf(registry:ts.TypeRegistry,ofExample:boolean=false):ts.Status {
-        var tp=registry.get(this.facetName());
-
-        if (!tp){
-            return ts.error(messageRegistry.UNKNOWN_ANNOTATION,this,{facetName: this.facetName()});
-        }
-        var result = ts.ok();
-        var q=this.value();
-        if (!q){
-            if (tp.isString()){
-                q="";
-            }
-        }
-        var aTargets = tp.metaOfType(AllowedTargets);
-        var contextTarget = ofExample ? "Example" : "TypeDeclaration";
-        if(aTargets.length>0) {
-            var arr:string[] = [];
-            var at = aTargets.filter(x=> {
-                var val = x.value();
-                if (Array.isArray(val)) {
-                    arr = arr.concat(val);
-                    return val.indexOf(contextTarget) >= 0;
-                }
-                arr.push(val);
-                return val == contextTarget;
-            });
-            if (at.length == 0) {
-                var list = arr.map(x=>`'${x}'`).join(", ");
-                var targetStatus = ts.error(messageRegistry.INVALID_ANNOTATION_LOCATION, this, { aName: super.facetName(), aValues: list });                
-                result.addSubStatus(targetStatus);
-            }
-        }
-        var valOwner=tp.validateDirect(q,true,false);
-        if (!valOwner.isOk()){
-            var res = ts.error(messageRegistry.INVALID_ANNOTATION_VALUE, this, { msg: valOwner.getMessage() });
-            res.addSubStatus(valOwner);
-            result.addSubStatus(res);
-        }
-        ts.setValidationPath(result,{name:`(${this.facetName()})`});
-        return result;
+        return ts.ok();
     }
 
     kind() : tsInterfaces.MetaInformationKind {
@@ -233,106 +195,10 @@ export class Example extends MetaInfo{
     }
 
     validateSelf(registry:ts.TypeRegistry):ts.Status {
-        var status = ts.ok();
-        status.addSubStatus(this.validateValue(registry));
-        var aStatus = this.validateAnnotations(registry);
-        ts.setValidationPath(aStatus,{name:this.facetName()});
-        status.addSubStatus(aStatus);
-        return status;
+        return ts.ok();
     }
 
-    validateValue(registry:ts.TypeRegistry):ts.Status {
-        var val=this.value();
-        var isVal=false;
-        var result = ts.ok();
-        if (typeof val==="object"&&val){
-            if (val.value){
-                
 
-                for(var y of exampleScalarProperties) {
-                    var propName = y.propName;
-                    var propType = y.propType;
-                    var propObj = val[propName];
-                    if (propObj&&typeof propObj!=propType){
-                        if(typeof(propObj)=="object") {
-                            Object.keys(propObj).forEach(key=> {
-                                if (key.charAt(0) == '(' && key.charAt(key.length - 1) == ')') {
-                                    var a = new Annotation(key.substring(1, key.length - 1), propObj[key]);
-                                    var aRes = a.validateSelf(registry, true);
-                                    ts.setValidationPath(aRes,{
-                                            name: "example",
-                                            child: {name: propName, child: {name: key}}
-                                        });
-                                    result.addSubStatus(aRes);
-                                }
-                            });
-                        }
-
-                        if(!propObj.value&&typeof propObj.value!=propType) {
-                            var s = ts.error(y.messageEntry, this);
-                            var vp = propObj.value ? {name: "value"} : null;
-                            ts.setValidationPath(s,{name: "example", child: {name: propName, child: vp}});
-                            result.addSubStatus(s);
-                        }
-                    }
-                    
-                }
-                
-                if (val.strict===false||(typeof(val.strict)=="object"&&val.strict.value===false)){
-                    return result;
-                }
-                val=val.value;
-                isVal=true;
-
-            }
-        }
-        var rr:any = val;
-        //if(!this.owner().isExternal()){
-            rr = parseExampleIfNeeded(val, this.owner());
-            if (rr instanceof ts.Status && !rr.isOk()) {
-                ts.setValidationPath(rr, {name: "example"});
-                result.addSubStatus(rr);
-                return result;
-            }
-        //}
-        var valOwner=this.owner().validateDirect(rr,true,false);
-        if (!valOwner.isOk()){
-            if (typeof this.value()==="string"){
-
-            }
-            var c = ts.error(messageRegistry.INVALID_EXMAPLE, this, { msg : valOwner.getMessage() });
-            valOwner.getErrors().forEach(x=>{c.addSubStatus(x);
-                if (isVal) {
-                    ts.setValidationPath(x,{name: "example", child: {name: "value"}});
-                }
-                else{
-                    ts.setValidationPath(x,{name: "example"});
-                }
-            });
-
-            result.addSubStatus(c);
-        }
-        return result;
-    }
-
-    validateAnnotations(registry:ts.TypeRegistry):ts.Status {
-        var status = ts.ok();
-        var val=this.value();
-        if (typeof val==="object"&&val){
-            if (val.value){
-                var usedAnnotations = Object.keys(val).filter(x=>
-                x.length>2 && x.charAt(0)=="(" && x.charAt(x.length-1)==")");
-
-                for(var ua of usedAnnotations) {
-                    var aValue = val[ua];
-                    var aName = ua.substring(1,ua.length-1);
-                    var aInstance = new Annotation(aName,aValue);
-                    status.addSubStatus(aInstance.validateSelf(registry,true));
-                }
-            }
-        }
-        return status;
-    }
     
     example():any{
         var val=this.value();
@@ -366,12 +232,7 @@ export class Required extends MetaInfo{
     }
 
     validateSelf(registry:ts.TypeRegistry):ts.Status {
-        var result = super.validateSelf(registry);
-        if (typeof this.value()!=="boolean"){
-            result =  ts.error(messageRegistry.REQUIRED_BOOLEAN,this);
-            ts.setValidationPath(result,{name:this.facetName()});
-        }
-        return result;
+       return ts.ok();
     }
 
     kind() : tsInterfaces.MetaInformationKind {
@@ -442,111 +303,13 @@ export class Examples extends MetaInfo{
     }
 
     validateSelf(registry:ts.TypeRegistry):ts.Status {
-        if (typeof this.value()==='object'){
-            var rs=new Status(Status.OK,"","",this);
-            var v=this.value();
-            if (v) {
-                Object.keys(v).forEach(x=> {
-                    var exampleObj = v[x];
-                    if (exampleObj) {
-                        if (typeof exampleObj=="object"&&exampleObj.value) {
-                            Object.keys(exampleObj).forEach(key=> {
-                                if (key.charAt(0) == '(' && key.charAt(key.length - 1) == ')') {
-                                    var a = new Annotation(key.substring(1, key.length - 1), v[x][key]);
-                                    var aRes = a.validateSelf(registry,true);
-                                    ts.setValidationPath(aRes,
-                                        {name:"examples",child:{name: x, child: {name: key}}});
-                                    rs.addSubStatus(aRes);
-                                }
-                            });
-                        }
-                        var val=exampleObj.value;
-                        var noVal=!val;
-                        if (noVal){
-                            val=exampleObj;
-                        }
-                        else{
-                            for(var y of exampleScalarProperties) {
-                                this.checkScalarProperty(exampleObj, x, y, registry,rs);
-                            }
-                            if (exampleObj.strict===false||(
-                                typeof(exampleObj.strict)=="object" && exampleObj.strict.value === false)){
-                                return ;
-                            }
-                        }
-                        var example:any = val;
-                        if(!this.owner().isExternal()) {
-                            example = parseExampleIfNeeded(val, this.owner());
-                            if (example instanceof ts.Status) {
-                                examplesPatchPath(example, noVal, x)
-                                rs.addSubStatus(example);
-                                return;
-                            }
-                        }
-                        var res = this.owner().validate(example, true, false);
-                        res.getErrors().forEach(ex=> {
-                            rs.addSubStatus(ex);
-                            examplesPatchPath(ex,noVal,x)
-                        });
-                    }
-                });
-            }
-            return rs;
-        }
-        else{
-            return ts.error(messageRegistry.EXMAPLES_MAP,this);
-        }
+       return ts.ok()
     }
 
-    private checkScalarProperty(
-        exampleObj:any,
-        exampleName:string,
-        y:any,
-        registry:ts.TypeRegistry,
-        status:Status) {
-        
-        var propName = y.propName;
-        var propType = y.propType;
-        var propObj = exampleObj[propName];
 
-        if (propObj && typeof propObj != propType) {
-            var vp:tsInterfaces.IValidationPath = null;
-            if (typeof(propObj) == "object") {
-                vp = {name: "value"};
-                Object.keys(propObj).forEach(key=> {
-                    if (key.charAt(0) == '(' && key.charAt(key.length - 1) == ')') {
-                        var a = new Annotation(key.substring(1, key.length - 1), exampleObj[propName][key]);
-                        var aRes = a.validateSelf(registry, true);
-                        ts.setValidationPath(aRes,
-                            {
-                                name: "examples",
-                                child: {name: exampleName, child: {name: propName, child: {name: key}}}
-                            });
-                        status.addSubStatus(aRes);
-                    }
-                });
-            }
-            if (!propObj.value && typeof(propObj.value) != propType) {
-                var s = ts.error(y.messageEntry, this);
-                ts.setValidationPath(s,{
-                    name: "examples",
-                    child: {name: exampleName, child: {name: propName, child: vp}}
-                });
-                status.addSubStatus(s);
-            }
-        }
-    }
 
     kind() : tsInterfaces.MetaInformationKind {
         return tsInterfaces.MetaInformationKind.Examples;
-    }
-}
-function examplesPatchPath(example:tsInterfaces.IStatus,noVal:boolean,x: string):void{
-    if (noVal){
-        ts.setValidationPath(example,{ name: "examples",child:{name: x}});
-    }
-    else {
-        ts.setValidationPath(example,{ name: "examples",child:{name: x, child: {name: "value"}}});
     }
 }
 
@@ -567,16 +330,7 @@ export class Default extends MetaInfo{
     }
 
     validateSelf(registry:ts.TypeRegistry):ts.Status {
-        var result = super.validateSelf(registry);
-        var valOwner=this.owner().validateDirect(this.value(),true);
-        if (!valOwner.isOk()){
-            var c = ts.error(messageRegistry.INVALID_DEFAULT_VALUE, this, { msg : valOwner.getMessage() });
-            valOwner.getErrors().forEach(x=>{c.addSubStatus(x);
-                ts.setValidationPath(x,{name:this.facetName()});
-            });
-            result.addSubStatus(c);
-        }
-        return result;
+        return ts.ok();
     }
 
     kind() : tsInterfaces.MetaInformationKind {
@@ -599,30 +353,7 @@ export class Discriminator extends ts.TypeInformation{
     facetName(){return "discriminator"}
 
     validateSelf(registry:ts.TypeRegistry):ts.Status {
-        var result = super.validateSelf(registry);
-        if (this.owner().isUnion()){
-            result = ts.error(messageRegistry.DISCRIMINATOR_FOR_UNION, this);
-        }
-        else if (!this.owner().isSubTypeOf(ts.OBJECT)){
-            result = ts.error(messageRegistry.DISCRIMINATOR_FOR_OBJECT, this)
-        }
-        else if (this.owner().getExtra(ts.GLOBAL)===false){
-            result = ts.error(messageRegistry.DISCRIMINATOR_FOR_INLINE, this)
-        }
-        else {
-            var prop = this.owner().meta().find( x=>x instanceof PropertyIs && (<PropertyIs>x).propertyName() == this.value());
-            if (!prop) {
-                result = ts.error(messageRegistry.UNKNOWN_FOR_DISCRIMINATOR,
-                    this, {value: this.value()}, ts.Status.WARNING);
-            }
-            else if (!prop.value().isScalar()) {
-                result = ts.error(messageRegistry.SCALAR_FOR_DISCRIMINATOR, this);
-            }
-        }
-        if(!result.getValidationPath()) {
-            ts.setValidationPath(result,{name: this.facetName()});
-        }
-        return result;
+       return ts.ok();
     }
 
     kind() : tsInterfaces.MetaInformationKind {
@@ -688,34 +419,7 @@ export class DiscriminatorValue extends ts.Constraint{
     facetName(){return "discriminatorValue"}
 
     validateSelf(registry:ts.TypeRegistry):ts.Status {
-        var st = super.validateSelf(registry);
-        if(this.strict) {
-            var ds = this.owner().oneMeta(Discriminator);
-            if (!this.owner().isSubTypeOf(ts.OBJECT)) {
-                st.addSubStatus(ts.error(messageRegistry.DISCRIMINATOR_FOR_OBJECT, this));
-            }
-            else if (this.owner().getExtra(ts.GLOBAL) === false) {
-                st.addSubStatus(ts.error(messageRegistry.DISCRIMINATOR_FOR_INLINE, this));
-            }
-            else if (!ds) {
-                st.addSubStatus(ts.error(messageRegistry.DISCRIMINATOR_VALUE_WITHOUT_DISCRIMINATOR, this));
-            }
-            else {
-                var prop = this.owner().meta().find(x=>
-                x instanceof PropertyIs && (<PropertyIs>x).propertyName() == ds.value());
-                if (prop) {
-                    var sm = prop.value().validate(this.value());
-                    if (!sm.isOk()) {
-                        st.addSubStatus(ts.error(messageRegistry.INVALID_DISCRIMINATOR_VALUE,
-                            this, {msg: sm.getMessage()}));
-                    }
-                }
-            }
-        }
-        if(!st.getValidationPath()) {
-            ts.setValidationPath(st,{name: this.facetName()});
-        }
-        return st;
+        return ts.ok();
     }
 
     requiredType(){
