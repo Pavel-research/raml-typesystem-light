@@ -1,4 +1,4 @@
-import  ts=require("./typesystem");
+export import  ts=require("./typesystem");
 var messageRegistry = ts.messageRegistry;
 import ti = require("raml-typesystem-interfaces")
 import tsInterfaces = ti.tsInterfaces
@@ -19,6 +19,8 @@ import {ComponentShouldBeOfType} from "./restrictions";
 import su = require("./schemaUtil")
 import {KnownPropertyRestriction} from "./restrictions";
 import {IParsedTypeCollection} from "raml-typesystem-interfaces/dist/typesystem-interfaces";
+
+
 
 export enum NodeKind{
     SCALAR,

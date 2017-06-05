@@ -266,6 +266,11 @@ export class PropertyIs extends MatchesProperty{
         return this.name;
     }
 
+    cloneWithType(t:ts.AbstractType):PropertyIs{
+        var rs=new PropertyIs(this.name,t,this.optional);
+        return rs;
+    }
+
     check(i:any,p:ts.IValidationPath):ts.Status{
         if (i && typeof i==="object") {
             if (i.hasOwnProperty(this.name)) {
@@ -1029,6 +1034,10 @@ export class ComponentShouldBeOfType extends FacetRestriction<ts.AbstractType>{
 
     constructor(private type:ts.AbstractType){
         super();
+    }
+
+    cloneWithType(v:ts.AbstractType){
+        return new ComponentShouldBeOfType(v);
     }
 
     public toString() {

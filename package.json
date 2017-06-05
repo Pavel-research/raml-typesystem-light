@@ -1,6 +1,6 @@
 {
   "name": "raml-typesystem-light",
-  "version": "0.0.15",
+  "version": "0.0.19",
   "private": false,
   "scripts": {
     "test-cov": " ./node_modules/.bin/istanbul cover _mocha dist/tests/*Tests.js",
@@ -28,6 +28,6 @@
   "dependencies": {
     "@types/node": "^6.0.55",
     "raml-typeexpressions-parser": "0.0.9",
-    "raml-typesystem-interfaces": "^0.0.15"
+    "raml-typesystem-interfaces": "^0.0.18"
   }
 }

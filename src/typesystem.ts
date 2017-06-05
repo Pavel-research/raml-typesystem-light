@@ -665,6 +665,28 @@ export abstract class AbstractType implements tsInterfaces.IParsedType, tsInterf
 
     protected _collection: IParsedTypeCollection;
 
+    protected abstract clone():AbstractType;
+
+    cloneWithFilter( x:(y:TypeInformation,transformed?:IParsedType)=>boolean|TypeInformation,f?:(t:IParsedType)=>IParsedType):AbstractType{
+        var c=this.clone();
+        var ms:TypeInformation[]=[];
+        this.metaInfo.forEach(f=>{
+            var rs=x(f,c);
+            if (typeof rs=="boolean"){
+                if (rs){
+                    ms.push(f);
+                }
+            }
+            else{
+                if (rs){
+                    ms.push(rs)
+                }
+            }
+        })
+        c.metaInfo=ms;
+        return c;
+    }
+
     options():IParsedType[]{
         if (this.isUnion()) {
             var res:IParsedType[]=[];
@@ -1873,6 +1895,10 @@ export class RootType extends AbstractType {
     kind() {
         return "root";
     }
+
+    clone(){
+        return this;
+    }
 }
 
 export class InheritedType extends AbstractType {
@@ -1880,6 +1906,38 @@ export class InheritedType extends AbstractType {
     protected _superTypes: AbstractType[] = []
 
     protected _contextMeta: restr.MatchesProperty;
+
+    clone(){
+        if(this.isBuiltin()){
+            return this;
+        }
+        var v=new InheritedType(this._name);
+        v._superTypes=this._superTypes;
+        return v;
+    }
+    cloneWithFilter( x:(y:TypeInformation,transformed?:IParsedType)=>boolean,f?:(t:IParsedType)=>IParsedType):AbstractType{
+        if(this.isBuiltin()){
+            return this;
+        }
+        var v=new InheritedType(this._name);
+        v._superTypes=this._superTypes.map(t=>t.cloneWithFilter(x,f));
+        var ms:TypeInformation[]=[];
+        this.metaInfo.forEach(f=>{
+            var rs=x(f,v);
+            if (typeof rs=="boolean"){
+                if (rs){
+                    ms.push(f);
+                }
+            }
+            else{
+                if (rs){
+                    ms.push(rs)
+                }
+            }
+        })
+        v.metaInfo=ms;
+        return v;
+    }
 
     superTypes() {
         return this._superTypes;
@@ -1962,7 +2020,28 @@ export abstract class DerivedType extends AbstractType implements tsInterfaces.I
     constructor(name: string, private _options: AbstractType[]) {
         super(name);
     }
-
+    cloneWithFilter( x:(y:TypeInformation,transformed?:IParsedType)=>boolean|TypeInformation,f?:(t:IParsedType)=>IParsedType):AbstractType{
+        var c=this.clone();
+        var ms:TypeInformation[]=[];
+        if (f){
+            (<DerivedType>c)._options=<any>this.options().map(t=>f(t));
+        }
+        this.metaInfo.forEach(f=>{
+            var rs=x(f,c);
+            if (typeof rs=="boolean"){
+                if (rs){
+                    ms.push(f);
+                }
+            }
+            else{
+                if (rs){
+                    ms.push(rs)
+                }
+            }
+        });
+        (<DerivedType>c).metaInfo=ms;
+        return c;
+    }
     /**
      *
      * @returns all possible options
@@ -1990,6 +2069,12 @@ export class UnionType extends DerivedType {
     kind() {
         return "union"
     }
+
+    clone(){
+        return new UnionType(this.name(),this.options());
+    }
+
+
 
     constructor(name: string, _options: AbstractType[]) {
         super(name, _options);
@@ -2056,6 +2141,10 @@ export class IntersectionType extends DerivedType {
 
     kind() {
         return "intersection";
+    }
+
+    clone(){
+        return new IntersectionType(this.name(),this.options());
     }
 
     restrictions() {
@@ -2780,6 +2869,8 @@ export class AnnotatedFacet implements tsInterfaces.IAnnotatedElement {
     entry(): tsInterfaces.ITypeFacet {
         return this._facet;
     }
+
+
 }
 import parse = require("./parse");
 import {IParsedType, IPropertyInfo, IParsedTypeCollection} from "raml-typesystem-interfaces/dist/typesystem-interfaces";
