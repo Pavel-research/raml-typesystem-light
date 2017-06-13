@@ -100,7 +100,7 @@ class JSObjectNode implements ParseNode{
     };
 }
 export function parseJSON(name: string,n:any,r:ts.TypeRegistry=ts.builtInRegistry(), provider?: su.IContentProvider):ts.AbstractType {
-    var res= parse(name,new JSObjectNode(null,n, false, provider),r);
+    var res= parse(name,new JSObjectNode(null,n, false, provider),r,null);
 
 
     return res;
@@ -127,6 +127,7 @@ export class PropertyBean{
         if (this.additonal){
             matchesPropertyFacet = new rs.AdditionalPropertyIs(this.type);
         }
+
         else if (this.regExp){
             matchesPropertyFacet = new rs.MapPropertyIs(this.id,this.type);
         }
@@ -242,7 +243,10 @@ export class AccumulatingRegistry extends ts.TypeRegistry{
                 }
                 this.parsing[name]=true;
                 try {
-                    var tp = parse(name, chld, this);
+                    var tp = parse(name, chld, this,false,
+                        false,
+                        true,
+                        false,this._c);
                 }
                 finally {
                     delete this.parsing[name];
@@ -386,7 +390,7 @@ export function parseTypeCollection(n:ParseNode,tr:ts.TypeRegistry):TypeCollecti
     return result;
 }
 
-export function parsePropertyBean(n:ParseNode,tr:ts.TypeRegistry):PropertyBean{
+export function parsePropertyBean(n:ParseNode,tr:ts.TypeRegistry,c:IParsedTypeCollection):PropertyBean{
     var result=new PropertyBean();
     var hasRequiredFacet = false;
     var rs=n.childWithKey("required");
@@ -413,7 +417,7 @@ export function parsePropertyBean(n:ParseNode,tr:ts.TypeRegistry):PropertyBean{
         name=name.substring(1,name.length-1);
         result.regExp=true;
     }
-    result.type=parse(null, n,tr,false,false,false);
+    result.type=parse(null, n,tr,false,false,false,false,c);
     result.id=name;
     return result;
 }
@@ -732,7 +736,7 @@ export function parseWithCollection(
     annotation:boolean=false,
     global:boolean=true,
     ignoreTypeAttr:boolean=false):ts.AbstractType{
-    let res=parse(name,n,<ts.TypeRegistry>r.getTypeRegistry(),defaultsToAny,annotation,global,ignoreTypeAttr);
+    let res=parse(name,n,<ts.TypeRegistry>r.getTypeRegistry(),defaultsToAny,annotation,global,ignoreTypeAttr,r);
     (<any>res)._collection=r;
     return res;
 }
@@ -745,7 +749,7 @@ export function parseJsonTypeWithCollection(
     annotation:boolean=false,
     global:boolean=true,
     ignoreTypeAttr:boolean=false):ts.AbstractType{
-    let res=parse(name,new JSObjectNode(null,n, false, null),<ts.TypeRegistry>r.getTypeRegistry(),defaultsToAny,annotation,global,ignoreTypeAttr);
+    let res=parse(name,new JSObjectNode(null,n, false, null),<ts.TypeRegistry>r.getTypeRegistry(),defaultsToAny,annotation,global,ignoreTypeAttr,r);
     (<any>res)._collection=r;
     return res;
 }
@@ -757,7 +761,7 @@ function parse(
     defaultsToAny:boolean=false,
     annotation:boolean=false,
     global:boolean=true,
-    ignoreTypeAttr:boolean=false):ts.AbstractType{
+    ignoreTypeAttr:boolean=false,_col?:IParsedTypeCollection):ts.AbstractType{
 
     //mentioning fragment' uses
     var uses=n.childWithKey("uses");
@@ -981,6 +985,7 @@ function parse(
                 }
                 var tp = componentTypes.length == 1 ? componentTypes[0] :
                     ts.derive("",componentTypes);
+                (<any>tp)._collection=_col;
                 appendedInfo = new ComponentShouldBeOfType(tp);
                 actualResult.addMeta(appendedInfo);
                 actualResult.putExtra(tsInterfaces.HAS_ITEMS,true)
@@ -1024,6 +1029,7 @@ function parse(
             appendAnnotations(appendedInfo, childNode);
         }
     });
+    (<any>result)._collection=_col;
     if(result.metaOfType(meta.DiscriminatorValue).length==0){
         result.addMeta(new meta.DiscriminatorValue(result.name(),false));
     }
@@ -1035,7 +1041,7 @@ function parse(
             if (props.kind() == NodeKind.MAP) {
                 props.children().forEach(x=> {
                     hasProps = true;
-                    parsePropertyBean(x, r).add(result);
+                    parsePropertyBean(x, r,_col).add(result);
                 });
             }
             else{
@@ -1066,7 +1072,7 @@ function parse(
     if (props){
         if (props.kind()==NodeKind.MAP){
             props.children().forEach(x=>{
-                var bean=parsePropertyBean(x,r);
+                var bean=parsePropertyBean(x,r,_col);
                 result.addMeta(new meta.FacetDeclaration(bean.id,bean.type,bean.optional));
             });
         }
